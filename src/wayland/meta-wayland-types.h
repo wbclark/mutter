@@ -61,4 +61,8 @@ typedef struct _MetaWaylandWindowConfiguration MetaWaylandWindowConfiguration;
 
 typedef struct _MetaWaylandPointerClient MetaWaylandPointerClient;
 
+typedef struct _MetaWaylandInputFdManager MetaWaylandInputFdManager;
+typedef struct _MetaWaylandInputFdSeat MetaWaylandInputFdSeat;
+typedef struct _MetaWaylandInputFdEvdevDevice MetaWaylandInputFdEvdevDevice;
+
 #endif

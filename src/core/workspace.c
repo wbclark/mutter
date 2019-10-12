@@ -365,10 +365,27 @@ meta_workspace_remove (MetaWorkspace *workspace)
    */
 }
 
+static void
+workspace_default_focus_changed (MetaWorkspace *workspace,
+                                 MetaWindow    *not_this_one)
+{
+  GSList *windows, *l;
+
+  windows = meta_display_list_windows (workspace->display, META_LIST_DEFAULT);
+  for (l = windows; l; l = l->next) {
+    MetaWindow *window = META_WINDOW (l->data);
+
+    if (meta_window_located_on_workspace (window, workspace) && window != not_this_one)
+      meta_window_appears_focused_changed (window);
+  }
+}
+
 void
 meta_workspace_add_window (MetaWorkspace *workspace,
                            MetaWindow    *window)
 {
+  MetaWorkspaceManager *manager = workspace->display->workspace_manager;
+
   COGL_TRACE_BEGIN_SCOPED (MetaWorkspaceAddWindow,
                            "Workspace (add window)");
 
@@ -385,6 +402,9 @@ meta_workspace_add_window (MetaWorkspace *workspace,
       meta_workspace_invalidate_work_area (workspace);
     }
 
+  if (workspace != manager->active_workspace)
+    workspace_default_focus_changed (workspace, window);
+
   g_signal_emit (workspace, signals[WINDOW_ADDED], 0, window);
   g_object_notify_by_pspec (G_OBJECT (workspace), obj_props[PROP_N_WINDOWS]);
 }
@@ -393,6 +413,8 @@ void
 meta_workspace_remove_window (MetaWorkspace *workspace,
                               MetaWindow    *window)
 {
+  MetaWorkspaceManager *manager = workspace->display->workspace_manager;
+
   COGL_TRACE_BEGIN_SCOPED (MetaWorkspaceRemoveWindow,
                            "Workspace (remove window)");
 
@@ -408,6 +430,9 @@ meta_workspace_remove_window (MetaWorkspace *workspace,
                   meta_workspace_index (workspace), window->desc);
       meta_workspace_invalidate_work_area (workspace);
     }
+
+  if (workspace != manager->active_workspace)
+    workspace_default_focus_changed (workspace, window);
 
   g_signal_emit (workspace, signals[WINDOW_REMOVED], 0, window);
   g_object_notify (G_OBJECT (workspace), "n-windows");
@@ -657,6 +682,7 @@ meta_workspace_activate_with_focus (MetaWorkspace *workspace,
   if (focus_this)
     {
       meta_window_activate (focus_this, timestamp);
+      workspace_default_focus_changed (workspace, focus_this);
     }
   else if (move_window)
     {

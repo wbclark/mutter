@@ -51,7 +51,7 @@ struct _ClutterPaintNode
 
   GArray *operations;
 
-  gchar *name;
+  const gchar *name;
 
   guint n_children;
 

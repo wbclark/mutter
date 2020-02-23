@@ -631,7 +631,7 @@
 #include "clutter-color-static.h"
 #include "clutter-color.h"
 #include "clutter-constraint-private.h"
-#include "clutter-container.h"
+#include "clutter-container-private.h"
 #include "clutter-content-private.h"
 #include "clutter-debug.h"
 #include "clutter-easing.h"
@@ -4582,7 +4582,7 @@ clutter_actor_remove_child_internal (ClutterActor                 *self,
 
   /* we need to emit the signal before dropping the reference */
   if (emit_actor_removed)
-    g_signal_emit_by_name (self, "actor-removed", child);
+    _clutter_container_emit_actor_removed (CLUTTER_CONTAINER (self), child);
 
   if (notify_first_last)
     {
@@ -13226,7 +13226,7 @@ clutter_actor_add_child_internal (ClutterActor              *self,
     }
 
   if (emit_actor_added)
-    g_signal_emit_by_name (self, "actor-added", child);
+    _clutter_container_emit_actor_added (CLUTTER_CONTAINER (self), child);
 
   if (notify_first_last)
     {

@@ -2636,6 +2636,7 @@ meta_seat_native_finalize (GObject *object)
 
   g_hash_table_destroy (seat->reserved_virtual_slots);
 
+  g_object_unref (seat->cursor_renderer);
   g_object_unref (seat->udev_client);
 
   meta_event_source_free (seat->event_source);
@@ -3332,4 +3333,25 @@ meta_seat_native_set_pointer_constraint (MetaSeatNative            *seat,
       if (impl)
         meta_pointer_constraint_impl_ensure_constrained (impl, seat->core_pointer);
     }
+}
+
+MetaCursorRenderer *
+meta_seat_native_get_cursor_renderer (MetaSeatNative     *seat,
+                                      ClutterInputDevice *device)
+{
+  if (device == seat->core_pointer)
+    {
+      if (!seat->cursor_renderer)
+        {
+          MetaCursorRendererNative *renderer_native;
+
+          renderer_native =
+            meta_cursor_renderer_native_new (meta_get_backend ());
+          seat->cursor_renderer = META_CURSOR_RENDERER (renderer_native);
+        }
+
+      return seat->cursor_renderer;
+    }
+
+  return NULL;
 }

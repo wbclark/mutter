@@ -1864,7 +1864,7 @@ update_tablet_cursor_state (MetaSeatNative     *seat,
 {
   if (in)
     {
-      MetaCursorRenderer *renderer;
+      MetaCursorRendererNative *renderer;
 
       if (!seat->tablet_cursors)
         {
@@ -1872,7 +1872,7 @@ update_tablet_cursor_state (MetaSeatNative     *seat,
                                                         g_object_unref);
         }
 
-      renderer = meta_cursor_renderer_new (meta_get_backend (), device);
+      renderer = meta_cursor_renderer_native_new (meta_get_backend (), device);
       g_hash_table_insert (seat->tablet_cursors, device, renderer);
     }
   else

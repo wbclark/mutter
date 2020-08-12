@@ -438,6 +438,8 @@ new_absolute_motion_event (MetaSeatImpl       *seat,
   clutter_event_set_device (event, seat->core_pointer);
   clutter_event_set_source_device (event, input_device);
 
+  g_rw_lock_writer_lock (&seat->state_lock);
+
   if (clutter_input_device_get_device_type (input_device) == CLUTTER_TABLET_DEVICE)
     {
       MetaInputDeviceNative *device_evdev =
@@ -460,6 +462,8 @@ new_absolute_motion_event (MetaSeatImpl       *seat,
       seat->pointer_x = x;
       seat->pointer_y = y;
     }
+
+  g_rw_lock_writer_unlock (&seat->state_lock);
 
   return event;
 }
@@ -2040,9 +2044,13 @@ process_device_event (MetaSeatImpl          *seat,
         y = libinput_event_touch_get_y_transformed (touch_event,
                                                     stage_height);
 
+        g_rw_lock_writer_lock (&seat->state_lock);
+
         touch_state = meta_seat_impl_acquire_touch_state (seat, seat_slot);
         touch_state->coords.x = x;
         touch_state->coords.y = y;
+
+        g_rw_lock_writer_unlock (&seat->state_lock);
 
         meta_seat_impl_notify_touch_event (seat, device,
                                            CLUTTER_TOUCH_BEGIN,
@@ -2077,7 +2085,10 @@ process_device_event (MetaSeatImpl          *seat,
                                            touch_state->seat_slot,
                                            touch_state->coords.x,
                                            touch_state->coords.y);
+
+        g_rw_lock_writer_lock (&seat->state_lock);
         meta_seat_impl_release_touch_state (seat, seat_slot);
+        g_rw_lock_writer_unlock (&seat->state_lock);
         break;
       }
 
@@ -2106,12 +2117,17 @@ process_device_event (MetaSeatImpl          *seat,
         y = libinput_event_touch_get_y_transformed (touch_event,
                                                     stage_height);
 
+        g_rw_lock_writer_lock (&seat->state_lock);
         touch_state = meta_seat_impl_lookup_touch_state (seat, seat_slot);
+        if (touch_state)
+          {
+            touch_state->coords.x = x;
+            touch_state->coords.y = y;
+          }
+        g_rw_lock_writer_unlock (&seat->state_lock);
+
         if (!touch_state)
           break;
-
-        touch_state->coords.x = x;
-        touch_state->coords.y = y;
 
         meta_seat_impl_notify_touch_event (seat, device,
                                            CLUTTER_TOUCH_UPDATE,
@@ -2473,6 +2489,8 @@ meta_seat_impl_constructed (GObject *object)
   struct udev *udev;
   struct xkb_keymap *xkb_keymap;
 
+  g_rw_lock_writer_lock (&seat->state_lock);
+
   device = meta_input_device_native_new_virtual (
       seat, CLUTTER_POINTER_DEVICE,
       CLUTTER_INPUT_MODE_LOGICAL);
@@ -2533,6 +2551,8 @@ meta_seat_impl_constructed (GObject *object)
       seat->scroll_lock_led =
         xkb_keymap_led_get_index (xkb_keymap, XKB_LED_NAME_SCROLL);
     }
+
+  g_rw_lock_writer_unlock (&seat->state_lock);
 
   seat->has_touchscreen = has_touchscreen (seat);
   seat->has_tablet_switch = has_tablet_switch (seat);
@@ -2630,6 +2650,8 @@ meta_seat_impl_finalize (GObject *object)
 
   g_free (seat->seat_id);
 
+  g_rw_lock_clear (&seat->state_lock);
+
   G_OBJECT_CLASS (meta_seat_impl_parent_class)->finalize (object);
 }
 
@@ -2692,6 +2714,9 @@ meta_seat_impl_query_state (MetaSeatImpl         *seat,
 {
   MetaInputDeviceNative *device_native = META_INPUT_DEVICE_NATIVE (device);
   MetaSeatImpl *seat_native = META_SEAT_IMPL (seat);
+  gboolean retval = FALSE;
+
+  g_rw_lock_reader_lock (&seat->state_lock);
 
   if (sequence)
     {
@@ -2701,7 +2726,7 @@ meta_seat_impl_query_state (MetaSeatImpl         *seat,
       slot = meta_event_native_sequence_get_slot (sequence);
       touch_state = meta_seat_impl_lookup_touch_state (seat_native, slot);
       if (!touch_state)
-        return FALSE;
+        goto out;
 
       if (coords)
         {
@@ -2712,7 +2737,7 @@ meta_seat_impl_query_state (MetaSeatImpl         *seat,
       if (modifiers)
         *modifiers = meta_xkb_translate_modifiers (seat_native->xkb, 0);
 
-      return TRUE;
+      retval = TRUE;
     }
   else
     {
@@ -2728,8 +2753,12 @@ meta_seat_impl_query_state (MetaSeatImpl         *seat,
                                                      seat_native->button_state);
         }
 
-      return TRUE;
+      retval = TRUE;
     }
+
+ out:
+  g_rw_lock_reader_unlock (&seat->state_lock);
+  return retval;
 }
 
 static void
@@ -2800,6 +2829,8 @@ meta_seat_impl_class_init (MetaSeatImplClass *klass)
 static void
 meta_seat_impl_init (MetaSeatImpl *seat)
 {
+  g_rw_lock_init (&seat->state_lock);
+
   seat->device_id_next = INITIAL_DEVICE_ID;
 
   seat->repeat = TRUE;
@@ -2841,6 +2872,8 @@ meta_seat_impl_update_xkb_state (MetaSeatImpl *seat)
   xkb_mod_mask_t locked_mods;
   struct xkb_keymap *xkb_keymap;
 
+  g_rw_lock_writer_lock (&seat->state_lock);
+
   xkb_keymap = meta_keymap_native_get_keyboard_map (seat->keymap);
 
   latched_mods = xkb_state_serialize_mods (seat->xkb,
@@ -2861,6 +2894,8 @@ meta_seat_impl_update_xkb_state (MetaSeatImpl *seat)
   seat->scroll_lock_led = xkb_keymap_led_get_index (xkb_keymap, XKB_LED_NAME_SCROLL);
 
   meta_seat_impl_sync_leds (seat);
+
+  g_rw_lock_writer_unlock (&seat->state_lock);
 }
 
 int
@@ -3021,6 +3056,8 @@ meta_seat_impl_set_keyboard_layout_index (MetaSeatImpl       *seat,
 
   g_return_if_fail (META_IS_SEAT_IMPL (seat));
 
+  g_rw_lock_writer_lock (&seat->state_lock);
+
   state = seat->xkb;
 
   depressed_mods = xkb_state_serialize_mods (state, XKB_STATE_MODS_DEPRESSED);
@@ -3030,6 +3067,8 @@ meta_seat_impl_set_keyboard_layout_index (MetaSeatImpl       *seat,
   xkb_state_update_mask (state, depressed_mods, latched_mods, locked_mods, 0, 0, idx);
 
   seat->layout_idx = idx;
+
+  g_rw_lock_writer_unlock (&seat->state_lock);
 }
 
 /**
@@ -3062,6 +3101,8 @@ meta_seat_impl_set_keyboard_numlock (MetaSeatImpl *seat,
 
   g_return_if_fail (META_IS_SEAT_IMPL (seat));
 
+  g_rw_lock_writer_lock (&seat->state_lock);
+
   keymap = seat->keymap;
   xkb_keymap = meta_keymap_native_get_keyboard_map (keymap);
 
@@ -3085,6 +3126,8 @@ meta_seat_impl_set_keyboard_numlock (MetaSeatImpl *seat,
                          group_mods);
 
   meta_seat_impl_sync_leds (seat);
+
+  g_rw_lock_writer_unlock (&seat->state_lock);
 }
 
 /**

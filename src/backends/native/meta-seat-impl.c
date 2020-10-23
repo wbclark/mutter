@@ -1662,6 +1662,9 @@ input_device_update_tool (ClutterInputDevice          *input_device,
 
   if (evdev_device->last_tool != tool)
     {
+      if (tool)
+        clutter_input_device_update_from_tool (input_device, tool);
+
       evdev_device->last_tool = tool;
       g_signal_emit_by_name (seat->seat, "tool-changed", input_device, tool);
     }

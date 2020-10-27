@@ -1424,9 +1424,6 @@ static inline void
 emit_pointer_event (ClutterEvent       *event,
                     ClutterInputDevice *device)
 {
-  if (_clutter_event_process_filters (event))
-    return;
-
   if (device != NULL && device->pointer_grab_actor != NULL)
     clutter_actor_event (device->pointer_grab_actor, event, FALSE);
   else
@@ -1439,9 +1436,6 @@ emit_crossing_event (ClutterEvent       *event,
 {
   ClutterEventSequence *sequence = clutter_event_get_event_sequence (event);
   ClutterActor *grab_actor = NULL;
-
-  if (_clutter_event_process_filters (event))
-    return;
 
   if (sequence)
     {
@@ -1466,9 +1460,6 @@ emit_touch_event (ClutterEvent       *event,
 {
   ClutterActor *grab_actor = NULL;
 
-  if (_clutter_event_process_filters (event))
-    return;
-
   if (device->sequence_grab_actors != NULL)
     {
       grab_actor = g_hash_table_lookup (device->sequence_grab_actors,
@@ -1491,9 +1482,6 @@ static inline void
 emit_keyboard_event (ClutterEvent       *event,
                      ClutterInputDevice *device)
 {
-  if (_clutter_event_process_filters (event))
-    return;
-
   if (device != NULL && device->keyboard_grab_actor != NULL)
     clutter_actor_event (device->keyboard_grab_actor, event, FALSE);
   else
@@ -1547,6 +1535,10 @@ is_off_stage (ClutterActor *stage,
 void
 clutter_do_event (ClutterEvent *event)
 {
+  ClutterEventSequence *sequence;
+  ClutterInputDevice *device;
+  ClutterActor *actor;
+
   /* we need the stage for the event */
   if (event->any.stage == NULL)
     {
@@ -1557,6 +1549,37 @@ clutter_do_event (ClutterEvent *event)
   /* stages in destruction do not process events */
   if (CLUTTER_ACTOR_IN_DESTRUCTION (event->any.stage))
     return;
+
+  device = clutter_event_get_device (event);
+  sequence = clutter_event_get_event_sequence (event);
+
+  if (device)
+    {
+      if (event->any.type == CLUTTER_ENTER ||
+          event->any.type == CLUTTER_MOTION ||
+          event->any.type == CLUTTER_TOUCH_BEGIN ||
+          event->any.type == CLUTTER_TOUCH_UPDATE)
+        {
+          device = clutter_event_get_device (event);
+          sequence = clutter_event_get_event_sequence (event);
+          actor = clutter_input_device_update (device, sequence,
+                                               event->any.stage,
+                                               TRUE, event);
+          clutter_event_set_source (event, actor);
+        }
+      else if (event->any.type != CLUTTER_KEY_PRESS &&
+               event->any.type != CLUTTER_KEY_RELEASE)
+        {
+          actor = clutter_input_device_get_actor (device, sequence);
+          clutter_event_set_source (event, actor);
+        }
+    }
+
+  if (_clutter_event_process_filters (event))
+    return;
+
+  /* FIXME: clutter stage event handling gets confused without this ATM */
+  clutter_event_set_source (event, NULL);
 
   /* Instead of processing events when received, we queue them up to
    * handle per-frame before animations, layout, and drawing.
@@ -1671,9 +1694,6 @@ _clutter_process_event_details (ClutterActor        *stage,
       case CLUTTER_DESTROY_NOTIFY:
         event->any.source = stage;
 
-        if (_clutter_event_process_filters (event))
-          break;
-
         /* the stage did not handle the event, so we just quit */
         clutter_stage_event (CLUTTER_STAGE (stage), event);
         break;
@@ -1696,9 +1716,6 @@ _clutter_process_event_details (ClutterActor        *stage,
           {
             /* Only stage gets motion events */
             event->any.source = stage;
-
-            if (_clutter_event_process_filters (event))
-              break;
 
             if (device != NULL && device->pointer_grab_actor != NULL)
               {
@@ -1818,9 +1835,6 @@ _clutter_process_event_details (ClutterActor        *stage,
             /* Only stage gets motion events */
             event->any.source = stage;
 
-            if (_clutter_event_process_filters (event))
-              break;
-
             /* global grabs */
             if (device->sequence_grab_actors != NULL)
               {
@@ -1914,9 +1928,6 @@ _clutter_process_event_details (ClutterActor        *stage,
 
       case CLUTTER_PROXIMITY_IN:
       case CLUTTER_PROXIMITY_OUT:
-        if (_clutter_event_process_filters (event))
-          break;
-
         if (!clutter_actor_event (stage, event, TRUE))
           {
             /* and bubbling phase */
@@ -1928,8 +1939,7 @@ _clutter_process_event_details (ClutterActor        *stage,
       case CLUTTER_STAGE_STATE:
         /* focus - forward to stage */
         event->any.source = stage;
-        if (!_clutter_event_process_filters (event))
-          clutter_stage_event (CLUTTER_STAGE (stage), event);
+        clutter_stage_event (CLUTTER_STAGE (stage), event);
         break;
 
       case CLUTTER_CLIENT_MESSAGE:
@@ -1937,9 +1947,6 @@ _clutter_process_event_details (ClutterActor        *stage,
 
       case CLUTTER_DEVICE_ADDED:
       case CLUTTER_DEVICE_REMOVED:
-        _clutter_event_process_filters (event);
-        break;
-
       case CLUTTER_EVENT_LAST:
         break;
     }

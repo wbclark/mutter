@@ -2727,9 +2727,11 @@ warp_pointer (GTask *task)
 }
 
 void
-meta_seat_impl_warp_pointer (MetaSeatImpl *seat,
-                             int           x,
-                             int           y)
+meta_seat_impl_warp_pointer (MetaSeatImpl        *seat,
+                             int                  x,
+                             int                  y,
+                             GAsyncReadyCallback  cb,
+                             gpointer             data)
 {
   graphene_point_t *point;
   GTask *task;
@@ -2738,7 +2740,7 @@ meta_seat_impl_warp_pointer (MetaSeatImpl *seat,
   point->x = x;
   point->y = y;
 
-  task = g_task_new (seat, NULL, NULL, NULL);
+  task = g_task_new (seat, NULL, cb, data);
   g_task_set_task_data (task, point, (GDestroyNotify) graphene_point_free);
   meta_seat_impl_run_input_task (seat, task, (GSourceFunc) warp_pointer);
   g_object_unref (task);

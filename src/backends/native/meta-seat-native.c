@@ -398,19 +398,30 @@ meta_seat_native_compress_motion (ClutterSeat        *seat,
 }
 
 static void
+warp_pointer_cb (MetaSeatImpl *impl,
+                 GAsyncResult *res,
+                 gpointer      user_data)
+{
+  MetaBackend *backend = user_data;
+  MetaCursorRenderer *cursor_renderer =
+    meta_backend_get_cursor_renderer (backend);
+  MetaCursorTracker *cursor_tracker = meta_backend_get_cursor_tracker (backend);
+
+  meta_cursor_renderer_update_position (cursor_renderer);
+  meta_cursor_tracker_update_position (cursor_tracker);
+}
+
+static void
 meta_seat_native_warp_pointer (ClutterSeat *seat,
                                int          x,
                                int          y)
 {
   MetaSeatNative *seat_native = META_SEAT_NATIVE (seat);
   MetaBackend *backend = meta_get_backend ();
-  MetaCursorRenderer *cursor_renderer =
-    meta_backend_get_cursor_renderer (backend);
-  MetaCursorTracker *cursor_tracker = meta_backend_get_cursor_tracker (backend);
 
-  meta_seat_impl_warp_pointer (seat_native->impl, x, y);
-  meta_cursor_renderer_update_position (cursor_renderer);
-  meta_cursor_tracker_update_position (cursor_tracker);
+  meta_seat_impl_warp_pointer (seat_native->impl, x, y,
+                               (GAsyncReadyCallback ) warp_pointer_cb,
+                               backend);
 }
 
 static gboolean

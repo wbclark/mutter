@@ -241,9 +241,11 @@ void meta_seat_impl_set_pointer_constraint (MetaSeatImpl              *seat,
 void meta_seat_impl_set_viewports (MetaSeatImpl     *seat,
                                    MetaViewportInfo *viewports);
 
-void meta_seat_impl_warp_pointer (MetaSeatImpl *seat,
-                                  int           x,
-                                  int           y);
+void meta_seat_impl_warp_pointer (MetaSeatImpl        *seat,
+                                  int                  x,
+                                  int                  y,
+                                  GAsyncReadyCallback  cb,
+                                  gpointer             data);
 ClutterVirtualInputDevice *
 meta_seat_impl_create_virtual_device (MetaSeatImpl           *seat,
                                       ClutterInputDeviceType  device_type);

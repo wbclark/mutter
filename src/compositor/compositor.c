@@ -440,6 +440,10 @@ meta_begin_modal_for_plugin (MetaCompositor   *compositor,
       meta_dnd_wayland_handle_begin_modal (compositor);
 #endif
     }
+  else
+    {
+      meta_backend_sync_pointer (meta_get_backend ());
+    }
 
   return TRUE;
 }
@@ -473,7 +477,11 @@ meta_end_modal_for_plugin (MetaCompositor *compositor,
       meta_dnd_wayland_handle_end_modal (compositor);
       meta_display_sync_wayland_input_focus (display);
     }
+  else
 #endif
+    {
+      meta_backend_sync_pointer (meta_get_backend ());
+    }
 
   g_signal_emit_by_name (display, "grab-op-end",
                          meta_plugin_get_display (plugin),

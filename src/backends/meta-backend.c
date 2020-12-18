@@ -1612,3 +1612,26 @@ meta_backend_is_hw_cursors_inhibited (MetaBackend *backend)
 
   return FALSE;
 }
+
+void
+meta_backend_sync_pointer (MetaBackend *backend)
+{
+  MetaBackendPrivate *priv = meta_backend_get_instance_private (backend);
+  ClutterSeat *seat = clutter_backend_get_default_seat (priv->clutter_backend);
+  ClutterInputDevice *pointer = clutter_seat_get_pointer (seat);
+  ClutterModifierType modifiers;
+  ClutterEvent *event;
+  graphene_point_t pos;
+
+  event = clutter_event_new (CLUTTER_MOTION);
+  clutter_seat_query_state (seat, pointer, NULL, &pos, &modifiers);
+  clutter_event_set_flags (event, CLUTTER_EVENT_FLAG_SYNTHETIC);
+  clutter_event_set_coords (event, pos.x, pos.y);
+  clutter_event_set_device (event, pointer);
+  clutter_event_set_state (event, modifiers);
+  clutter_event_set_source_device (event, NULL);
+  clutter_event_set_stage (event, CLUTTER_STAGE (priv->stage));
+
+  clutter_event_put (event);
+  clutter_event_free (event);
+}
